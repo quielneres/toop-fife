@@ -7,11 +7,11 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 
-class Comprador extends Authenticatable
+class Pedido extends Authenticatable
 {
     use Notifiable;
 
-    protected $table = 'compradores';
+    protected $table = 'pedidos';
 
     /**
      * The attributes that are mass assignable.
@@ -19,10 +19,14 @@ class Comprador extends Authenticatable
      * @var array
      */
     protected $fillable = [
+        'id',
         'id_usuario',
+        'id_comprador',
+        'id_pedido',
         'json',
+        'created_at',
+        'updated_at',
     ];
-
 
 
 }
