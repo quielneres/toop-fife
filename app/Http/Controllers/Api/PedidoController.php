@@ -67,11 +67,27 @@ class PedidoController extends Controller
     public function pedidosLocal()
     {
         $pedidos = Pedido::all();
-
         $data=[];
         foreach ($pedidos as $pedido){
-            $data[] = json_decode($pedido->json);
+            $data[] = [
+                'id_comprador' => json_decode($pedido->json)->customer->id,
+                'nome_comprador' => json_decode($pedido->json)->customer->fullname,
+                'email' => json_decode($pedido->json)->customer->email,
+                'id_pedido' => json_decode($pedido->json)->id,
+                'cadastro' => date('d/m/y H:i', strtotime(json_decode($pedido->json)->createdAt)),
+                'total' => number_format(json_decode($pedido->json)->amount->total, 2, ',', '.')
+            ];
         }
-        return response()->json(['pedidos' => $data]);
+        return response()->json(['pedido' => $data]);
+    }
+
+    public function pedidoDetalhe($order_id)
+    {
+        try {
+            $order = $this->moip->orders()->get($order_id);
+            return response()->json($order);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Errro interno']);
+        }
     }
 }
