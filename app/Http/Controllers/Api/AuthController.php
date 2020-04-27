@@ -21,14 +21,23 @@ class AuthController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
-        $usuario = User::where('email', $request->get('email'))->firstOrfail();
+        $usuario = User::query()
+            ->select(
+                'users.id',
+                'users.name',
+                'users.email',
+                'users.cpf',
+                'c.id_comprador'
+            )
+            ->leftJoin('compradores as c', 'c.id_usuario', '=', 'users.id')
+            ->where('email', $request->get('email'))
+            ->firstOrfail();
+
 
         return response()->json([
             'user'  => $usuario,
             'token' => $token
         ]);
-
-//        return $this->respondWithToken($token);
     }
 
     /**

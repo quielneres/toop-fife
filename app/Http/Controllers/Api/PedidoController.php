@@ -20,21 +20,19 @@ class PedidoController extends Controller
     }
 
 
-    public function novoPedido(Request $request)
+    public function newResquest(Request $request)
     {
-        $params = $request->get('itens');
-
-        $id_comprador     = $params[0]['id_comprador'];
-        $valor            = $params[0]['valor'];
-        $preco            = $params[0]['preco'];
-        $quantidade       = $params[0]['quantidade'];
-        $descricao_pedido = $params[0]['descricao'];
-        $detalhes         = $params[0]['detalhes'];
+        $id_comprador     = $request->get('id_comprador');
+        $valor            = $request->get('valor');
+        $preco            = $request->get('preco');
+        $quantidade       = $request->get('quantidade');
+        $descricao_pedido = $request->get('descricao');
+        $detalhes         = $request->get('detalhes');
 
         try{
             $order = $this->moip->orders()->setOwnId(uniqid())
-                ->addItem($descricao_pedido, $quantidade, $detalhes, $preco)
-                ->setShippingAmount($valor)->setAddition(0)->setDiscount(0)
+                ->addItem($descricao_pedido, $quantidade, $detalhes, intval($preco))
+                ->setShippingAmount(intval($valor))->setAddition(0)->setDiscount(0)
                 ->setCustomerId($id_comprador)
                 ->create();
 
@@ -45,10 +43,30 @@ class PedidoController extends Controller
             $pedido->json         = json_encode($order);
             $pedido->save();
 
-            return response()->json(['pedido' => $order]);
+
+            $logo_uri = "http://www.lojaexemplo.com.br/logo.jpg";
+            $expiration_date = "2020-06-20";
+            $instruction_lines = [
+                "Atenção,",                                         //First
+                "fique atento à data de vencimento do boleto.",     //Second
+                "Pague em qualquer casa lotérica."                  //Third
+            ];
+
+            $payment = $order->payments()
+                ->setBoleto($expiration_date, $logo_uri, $instruction_lines)
+                ->setStatementDescriptor("Pag Toop")
+                ->execute();
+
+            $this->sendMail($payment->getHrefBoleto());
+
+            return response()->json(['status' => true, 'link_boleto' => $payment->getHrefBoleto()]);
         }catch (\Exception $e){
-            return response()->json($e->getMessage());
+            return response()->json(['status' => false]);
         }
+    }
+
+    public function sendMail($link_boleto)
+    {
 
     }
 
@@ -66,10 +84,11 @@ class PedidoController extends Controller
 
     public function pedidosLocal()
     {
-        $pedidos = Pedido::all();
+        $pedidos = Pedido::query()->orderBy('id', 'desc')->limit(3)->get();
         $data=[];
         foreach ($pedidos as $pedido){
             $data[] = [
+                'id' => $pedido->id,
                 'id_comprador' => json_decode($pedido->json)->customer->id,
                 'nome_comprador' => json_decode($pedido->json)->customer->fullname,
                 'email' => json_decode($pedido->json)->customer->email,

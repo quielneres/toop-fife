@@ -18,7 +18,7 @@ Route::get('/', function () {
 });
 
 Route::get('/api', function () {
-    return response()->json(['api'=> 'v-1.0.0']);
+    return response()->json(['api' => 'v-1.0.0']);
 })->name('api');
 
 Auth::routes();
