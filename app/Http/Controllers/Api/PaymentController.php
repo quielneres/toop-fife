@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Comprador;
+use App\Client;
 use App\CreditCard;
 use App\Http\Controllers\Controller;
+use App\Services\CreditCardService;
+use App\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Moip\Auth\BasicAuth;
@@ -12,144 +14,79 @@ use Moip\Moip;
 
 class PaymentController extends Controller
 {
-    public $moip;
 
-    public function __construct()
+    public function register(Request $request, CreditCardService $creditCardService, $id)
     {
-        $token      = '60FAPH4GGLJGUM4MFW8CUSEFNNAJT5SC';
-        $key        = 'UWNSJ0UYVTWH41GSKCTC4UWDVDLVEH8XSGBCMROS';
-        $this->moip = new Moip(new BasicAuth($token, $key), Moip::ENDPOINT_SANDBOX);
-    }
 
-    public function register(Request $request)
-    {
-        $id_client = null;
+        $user = User::where('id', $id)->firstOrFail();
 
-        $validator = Validator::make($request->all(), [
-            'cpf_client' => 'required',
-        ]);
+        if ($user->countClient) {
 
-        if ($validator->fails()) {
+            try {
 
-            return response()->json($validator->errors(), 400);
-        }
+                $customer_card = $creditCardService->saveCard($request, $user);
 
-        $client = Comprador::where('json', 'LIKE', "%{$request->get('cpf_client')}%")->first();
+                $credit_cards             = new CreditCard();
+                $credit_cards->id_user    = $id;
+                $credit_cards->id_cliente = $user->countClient->id_comprador;
+                $credit_cards->id_card    = $customer_card->getId();
+                $credit_cards->json       = json_encode($customer_card);
+                $credit_cards->save();
 
-        if (!$client) {
-
-            $customer = $this->registerClient($request);
-            if ($customer['status']) {
-                $id_client = $customer['id_client'];
-            } else {
-                return response()->json($customer);
+                return response()->json(['status' => true]);
+            } catch (\Exception $exception) {
+                return response()->json(['status' => false, $exception->getErros()]);
             }
-        } else {
-            $id_client = $client->id_comprador;
-        }
-
-        try {
-
-            $data_nasci = date('Y-m-d', strtotime(str_replace('/', '-', $request->get('birth_client'))));
-            $expiretion = explode('/', $request->get('expiration'));
-
-            $number       = $request->get('number_card');
-            $cvc          = $request->get('cvc');
-            $nameTitular  = $request->get('name_holder');
-            $birthDate    = $data_nasci;
-            $cpf          = $request->get('cpf_client');
-            $ddd          = intval($request->get('ddd'));
-            $phone_number = intval($request->get('phone_number'));
-
-            $customer_card = $this->moip->customers()->creditCard()
-                ->setExpirationMonth($expiretion[0])
-                ->setExpirationYear($expiretion[1])
-                ->setNumber($number)
-                ->setCVC($cvc)
-                ->setFullName($nameTitular)
-                ->setBirthDate($birthDate)
-                ->setTaxDocument('CPF', $cpf)
-                ->setPhone('55', $ddd, $phone_number)
-                ->create($id_client);
-
-            $credit_cards             = new CreditCard();
-            $credit_cards->id_user    = 1;
-            $credit_cards->id_cliente = $id_client;
-            $credit_cards->id_card    = $customer_card->getId();
-            $credit_cards->json       = json_encode($customer_card);
-            $credit_cards->save();
-
-            return response()->json(['status' => true, 'message' => 'Cartao cadastrado com sucesso']);
-        } catch (\Exception $exception) {
-            return response()->json(['status' => false, 'message' => 'Erro ao cadastrar cartao']);
-        }
-    }
-
-
-    public function registerClient($data)
-    {
-
-        $data_nasci = date('Y-m-d', strtotime(str_replace('/', '-', $data->get('birth_client'))));
-
-        $nome         = $data->get('name_client');
-        $email        = $data->get('email_client');
-        $nascimento   = $data_nasci;
-        $cpf          = $data->get('cpf_client');
-        $street       = $data->get('street');
-        $number       = $data->get('adress_nuumber');
-        $district     = $data->get('district');
-        $city         = $data->get('city');
-        $state        = $data->get('state_adress');
-        $complement   = $data->get('complement');
-        $zipe         = $data->get('zip_code');
-        $ddd          = intval($data->get('ddd'));
-        $phone_number = intval($data->get('phone_number'));
-
-        try {
-            $customer = $this->moip->customers()->setOwnId(uniqid())
-                ->setFullname($nome)
-                ->setEmail($email)
-                ->setBirthDate($nascimento)
-                ->setTaxDocument($cpf)
-                ->setPhone($ddd, $phone_number)
-                ->addAddress('BILLING',
-                    $street, $number,
-                    $district, $city, $state,
-                    $zipe, $complement)
-                ->addAddress('SHIPPING',
-                    'Rua de teste do SHIPPING', 123,
-                    'Bairro do SHIPPING', 'Sao Paulo', 'SP',
-                    '01234567', 8)
-                ->create();
-
-            $comprador               = new Comprador();
-            $comprador->id_usuario   = 1;
-            $comprador->id_comprador = $customer->getId();
-            $comprador->json         = json_encode($customer);
-            $comprador->save();
-
-            return ['status' => true, 'id_client' => $customer->getId()];
-        } catch (\Exception $exception) {
-            return ['status' => false, 'message' => 'Error ao salvar cliente'];
         }
     }
 
     public function listCreditCards($id_user)
     {
-        $cards = CreditCard::where('id_user', $id_user)->get()->toArray();
-        $list_cards=[];
+        $cards      = CreditCard::where('id_user', $id_user)->get()->toArray();
+        $list_cards = [];
 
-        foreach ($cards as $card){
+        foreach ($cards as $card) {
             $list_cards[] = [
-                'id_card' => json_decode($card['json'])->creditCard->id,
-                'flag' => json_decode($card['json'])->creditCard->brand,
+                'id'        => $card['id'],
+                'id_card'   => json_decode($card['json'])->creditCard->id,
+                'flag'      => json_decode($card['json'])->creditCard->brand,
                 'dig_start' => json_decode($card['json'])->creditCard->first6,
-                'dig_end' => json_decode($card['json'])->creditCard->last4,
-                'status' => $card['status']
+                'dig_end'   => json_decode($card['json'])->creditCard->last4,
+                'status'    => $card['status']
             ];
         }
 
 
         return response()->json(['data' => $list_cards]);
+    }
+
+    public function cardDefault(Request $request, $id)
+    {
+        $card = CreditCard::where('id_user', $id)
+            ->where('status', 1)
+            ->first();
+
+        if ($card) {
+            $card->status = 0;
+            $card->save();
+
+
+        }
+
+        $card         = CreditCard::where('id', $request->get('id'))->first();
+        $card->status = $request->get('status') == 0 ? 1 : 0;
+        $card->save();
+
+        return response()->json(['status' => true]);
+
+    }
+
+    public function cardDelete($id_card)
+    {
+        $card = CreditCard::where('id', $id_card)->firstOrFail();
+        $card->delete();
+
+        return response()->json(['status' => true]);
+
     }
 }

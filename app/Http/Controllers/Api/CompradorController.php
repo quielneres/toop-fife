@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Comprador;
+use App\Client;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Moip\Auth\BasicAuth;
@@ -47,7 +47,7 @@ class CompradorController extends Controller
                     '01234567', 8)
                 ->create();
 
-            $comprador               = new Comprador();
+            $comprador               = new Client();
             $comprador->id_usuario   = 1;
             $comprador->id_comprador = $customer->getId();
             $comprador->json         = json_encode($customer);

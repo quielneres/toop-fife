@@ -23,13 +23,10 @@ class AuthController extends Controller
 
         $usuario = User::query()
             ->select(
-                'users.id',
-                'users.name',
-                'users.email',
-                'users.cpf',
+                'users.*',
                 'c.id_comprador'
             )
-            ->leftJoin('compradores as c', 'c.id_usuario', '=', 'users.id')
+            ->leftJoin('clients as c', 'c.id_usuario', '=', 'users.id')
             ->where('email', $request->get('email'))
             ->firstOrfail();
 

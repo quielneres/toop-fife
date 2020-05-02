@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Pedido;
+use App\Recarga;
 use Illuminate\Http\Request;
 use Moip\Auth\BasicAuth;
 use Moip\Moip;
@@ -29,7 +30,7 @@ class PedidoController extends Controller
         $descricao_pedido = $request->get('descricao');
         $detalhes         = $request->get('detalhes');
 
-        try{
+        try {
             $order = $this->moip->orders()->setOwnId(uniqid())
                 ->addItem($descricao_pedido, $quantidade, $detalhes, intval($preco))
                 ->setShippingAmount(intval($valor))->setAddition(0)->setDiscount(0)
@@ -43,31 +44,45 @@ class PedidoController extends Controller
             $pedido->json         = json_encode($order);
             $pedido->save();
 
+            if ($request->get('payment_method') == 1) {
+                $payment = $this->boletoGeneration($order, $pedido);
 
-            $logo_uri = "http://www.lojaexemplo.com.br/logo.jpg";
-            $expiration_date = "2020-06-20";
-            $instruction_lines = [
-                "Atenção,",                                         //First
-                "fique atento à data de vencimento do boleto.",     //Second
-                "Pague em qualquer casa lotérica."                  //Third
-            ];
+                $recarga = new Recarga();
+                $recarga->id_usuario = 1;
+                $recarga->id_pedido = $order->getId();
+                $recarga->nu_celular = $request->get('cell_number');
+                $recarga->operador = $request->get('operadora_name');
+                $recarga->valor = $request->get('valor');
+                $recarga->link_boleto = $payment->getHrefBoleto();
+                $recarga->save();
 
-            $payment = $order->payments()
-                ->setBoleto($expiration_date, $logo_uri, $instruction_lines)
-                ->setStatementDescriptor("Pag Toop")
-                ->execute();
+                return response()->json(['status' => true, 'link_boleto' => $payment->getHrefBoleto()]);
+            }
 
-            $this->sendMail($payment->getHrefBoleto());
+            return response()->json(['status' => true]);
 
-            return response()->json(['status' => true, 'link_boleto' => $payment->getHrefBoleto()]);
-        }catch (\Exception $e){
+
+        } catch (\Exception $e) {
             return response()->json(['status' => false]);
         }
     }
 
-    public function sendMail($link_boleto)
+    public function boletoGeneration($order, $pedido)
     {
+        $logo_uri          = "http://www.lojaexemplo.com.br/logo.jpg";
+        $expiration_date   = (new \DateTime('+5 day'))->format('Y-m-d');
+        $instruction_lines = [
+            "Atenção,",                                         //First
+            "fique atento à data de vencimento do boleto.",     //Second
+            "Pague em qualquer casa lotérica."                  //Third
+        ];
 
+        $payment = $order->payments()
+            ->setBoleto($expiration_date, $logo_uri, $instruction_lines)
+            ->setStatementDescriptor("Pag Toop")
+            ->execute();
+
+        return $payment;
     }
 
     public function meusPedidos()
@@ -85,16 +100,16 @@ class PedidoController extends Controller
     public function pedidosLocal()
     {
         $pedidos = Pedido::query()->orderBy('id', 'desc')->limit(3)->get();
-        $data=[];
-        foreach ($pedidos as $pedido){
+        $data    = [];
+        foreach ($pedidos as $pedido) {
             $data[] = [
-                'id' => $pedido->id,
-                'id_comprador' => json_decode($pedido->json)->customer->id,
+                'id'             => $pedido->id,
+                'id_comprador'   => json_decode($pedido->json)->customer->id,
                 'nome_comprador' => json_decode($pedido->json)->customer->fullname,
-                'email' => json_decode($pedido->json)->customer->email,
-                'id_pedido' => json_decode($pedido->json)->id,
-                'cadastro' => date('d/m/y H:i', strtotime(json_decode($pedido->json)->createdAt)),
-                'total' => number_format(json_decode($pedido->json)->amount->total, 2, ',', '.')
+                'email'          => json_decode($pedido->json)->customer->email,
+                'id_pedido'      => json_decode($pedido->json)->id,
+                'cadastro'       => date('d/m/y H:i', strtotime(json_decode($pedido->json)->createdAt)),
+                'total'          => number_format(json_decode($pedido->json)->amount->total, 2, ',', '.')
             ];
         }
         return response()->json(['pedido' => $data]);
