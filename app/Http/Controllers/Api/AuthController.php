@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\UserService;
 use App\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class AuthController extends Controller
 {
@@ -13,7 +15,7 @@ class AuthController extends Controller
      *
      * @return \Illuminate\Http\JsonResponse
      */
-    public function login(Request $request)
+    public function login(Request $request, UserService $userService)
     {
         $credentials = $request->only(['email', 'password']);
 
@@ -21,19 +23,14 @@ class AuthController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
-        $usuario = User::query()
-            ->select(
-                'users.*',
-                'c.id_comprador'
-            )
-            ->leftJoin('clients as c', 'c.id_usuario', '=', 'users.id')
-            ->where('email', $request->get('email'))
-            ->firstOrfail();
+        $usr =  User::where('email', $request->get('email'))->firstOrFail();
 
+        $user = $userService->getUser($usr->id);
 
         return response()->json([
-            'user'  => $usuario,
-            'token' => $token
+            'token' => $token,
+            'user'  => $user['user'],
+            'card'  => $user['cc'],
         ]);
     }
 

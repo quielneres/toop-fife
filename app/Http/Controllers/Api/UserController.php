@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Client;
 use App\Http\Controllers\Controller;
 use App\Services\ClientService;
+use App\Services\UserService;
 use App\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -41,7 +42,7 @@ class UserController extends Controller
         return response()->json(['status' => 'success', 'message' => 'Cadastrado com sucesso']);
     }
 
-    public function update(Request $request, $id, ClientService $clientService)
+    public function update(Request $request, $id, ClientService $clientService, UserService $userService)
     {
 
         $validator = Validator::make($request->all(), [
@@ -67,6 +68,7 @@ class UserController extends Controller
         $birth = $this->toDate($request->get('birth'));
 
         $user                = User::where('id', $id)->firstOrFail();
+
         $user->name          = $request->get('name');
         $user->cpf           = $request->request->getDigits('cpf');
         $user->cnpj          = $request->request->getDigits('cnpj');
@@ -94,7 +96,9 @@ class UserController extends Controller
             $client->save();
         }
 
-        return response()->json(['status' => true, 'user' => $user]);
+        $user_obj = $userService->getUser($user->id);
+
+        return response()->json(['status' => true, 'user' => $user_obj['user'], 'card' => $user_obj['cc']]);
     }
 
     public function toDate($data)
