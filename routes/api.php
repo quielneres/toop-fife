@@ -21,8 +21,10 @@ Route::middleware('api')->get('/', function (Request $request) {
 Route::post('auth/login', 'Api\\AuthController@login');
 
 Route::group(['middleware' => ['apiJwt']], function () {
-    Route::get('users', 'Api\\UserController@index');
 });
+
+
+Route::get('users', 'Api\\UserController@index');
 Route::post('novo-comprador', 'Api\\CompradorController@novoComprador');
 Route::post('consultar-comprador', 'Api\\WireCardController@getComprador');
 //    Route::post('add-credit-card','Api\\WireCardController@addCreditCard');
